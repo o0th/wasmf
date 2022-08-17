@@ -2,37 +2,37 @@ package main
 
 import (
 	"github.com/wasmerio/wasmer-go/wasmer"
-	"github.com/gofiber/fiber/v2"
 	"io/ioutil"
-	"strconv"
+	"fmt"
 )
 
+type response struct {
+	status int
+}
+
 func main() {
-	wasmBytes, _ := ioutil.ReadFile("exports.wasm")
+	wasmBytes, _ := ioutil.ReadFile("./assemblyscript/exports.wasm")
+
 	engine := wasmer.NewEngine()
 	store := wasmer.NewStore(engine)
-	module, _ := wasmer.NewModule(store, wasmBytes)
+
+	module, err := wasmer.NewModule(store, wasmBytes)
+	if err != nil {
+		panic(fmt.Sprintln("Failed to compile module;", err))
+	}
 
 	importObject := wasmer.NewImportObject()
-	instance, _ := wasmer.NewInstance(module, importObject)
 
-	sum, _ := instance.Exports.GetFunction("sum")
+	instance, err := wasmer.NewInstance(module, importObject)
+	if err != nil {
+		panic(fmt.Sprintln("Failed to instantiate the module;", err))
+	}
 
-	app := fiber.New()
+	memory, err := instance.Exports.GetMemory("memory")
+	if err != nil {
+		panic(fmt.Sprintln("failed to get memory;", err))
+	}
 
-	app.Get("/:n1/:n2", func(c *fiber.Ctx) error {
-		n1 := c.Params("n1")
-		n2 := c.Params("n2")
-
-		n1int64, _ := strconv.ParseInt(n1, 10, 32)
-		n2int64, _ := strconv.ParseInt(n2, 10, 32)
-
-		n1int32 := int32(n1int64)
-		n2int32 := int32(n2int64)
-
-		result, _ := sum(n1int32, n2int32)
-		return c.SendString(strconv.Itoa(int(result.(int32))))
-	})
-
-	app.Listen(":3000")
+	data := memory.Data()
+	fmt.Println(string(data))
 }
